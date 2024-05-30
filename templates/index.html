@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Webcam Test</title>
+    <style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f0f0f0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+    .container {
+        display: flex;
+    }
+    #chat, #conversation {
+        box-sizing: border-box; /* Include padding and border in total width and height */
+    }
+    #video, #chat {
+        width: 640px; /* Set a fixed width */
+        object-fit: cover; /* Ensure the video covers the entire size of the video element */
+    }
+    #video {
+        height: 480px; /* Set a fixed height for the video */
+    }
+    #chat {
+        flex: none; /* Allow the chat box to grow and shrink as needed */
+        max-width: none;
+        height: 480px;
+        background-color: #ADD8E6;
+        border-radius: 5px;
+        padding: 20px;
+        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    }
+    #conversation {
+        height: calc(100% - 60px);
+        border: 1px solid #ddd;
+        padding: 10px;
+        margin-bottom: 20px;
+        overflow-y: auto;
+    }
+    #chat-form {
+        display: flex;
+    }
+    #chat-form input {
+        flex-grow: 1;
+        margin-right: 10px;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+    }
+    #chat-form button {
+        padding: 10px 20px;
+        border: none;
+        background-color: #007BFF;
+        color: #fff;
+        cursor: pointer;
+        border-radius: 5px;
+    }
+    #chat-form button:hover {
+        background-color: #0056b3;
+    }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <video id="video" width="640" height="480" autoplay></video>
+        <div id="chat">
+            <div id="conversation"></div>
+            <form id="chat-form">
+                <input type="text" id="message" autocomplete="off">
+                <button type="submit">Send</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        // Get the video element
+        var video = document.getElementById('video');
+        var image_url;
+
+        if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
+                video.srcObject = stream;
+                video.play();
+            });
+        }
+
+        // Capture an image from the video stream every second
+        setInterval(function(){
+            var canvas = document.createElement('canvas');
+            canvas.width = 640;
+            canvas.height = 480;
+            var context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, 640, 480);
+            var data = canvas.toDataURL('image/jpeg');
+            
+            // Send the image data to the /process endpoint
+            fetch('/process', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ image: data })
+            }).then(response => response.json()).then(data => {
+                // Store the image_url
+                image_url = data.image;
+            });
+        }, 1000);
+
+        // Handle the chat form submission
+        var form = document.getElementById('chat-form');
+        var conversation = document.getElementById('conversation');
+
+        // Send the message to the /chat endpoint
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var message = document.getElementById('message').value;
+            fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'message=' + encodeURIComponent(message) + '&image_url=' + encodeURIComponent(image_url)
+            }).then(response => response.json()).then(data => {
+                conversation.innerHTML += 'You: ' + message + '<br>';
+                conversation.innerHTML += 'GPT-4o: ' + data.response + '<br>';
+                document.getElementById('message').value = '';
+            });
+        });
+    </script>
+</body>
+</html>
